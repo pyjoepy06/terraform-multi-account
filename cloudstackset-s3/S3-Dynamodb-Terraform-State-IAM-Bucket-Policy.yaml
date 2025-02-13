@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Template for creating S3 bucket and DynamoDB table to hold Terraform state and locks
+
+
+Resources:
+  TerraformStateS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub terraform-state-${AWS::AccountId}-${AWS::Region}
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  TerraformStateLockDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub terraform-state-lock-${AWS::AccountId}-${AWS::Region}
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      SSESpecification:
+        SSEEnabled: true

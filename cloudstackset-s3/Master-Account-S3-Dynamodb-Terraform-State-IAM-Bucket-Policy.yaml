@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Template for creating S3 bucket and DynamoDB table to hold Terraform state and locks
+  
+Parameters:
+  TerraformStateBucketPrefix:
+    Type: String
+    Default: terraform-state
+    Description: A prefix for S3 bucket name, account id will be added to ensure global uniqueness
+  TerraformStateLockTableName:
+    Type: String
+    Default: terraform-state-locks
+  TerraformMasterAccountNumber:
+    Type: String
+    Default: your-terraform-master-acccount-number
+
+
+Resources:
+  TerraformStateS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${TerraformStateBucketPrefix}-${AWS::Region}"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  TerraformBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TerraformStateS3Bucket
+      PolicyDocument:
+        Statement:
+          - 
+            Action:
+              - s3:*
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${TerraformStateS3Bucket}
+              - !Sub arn:aws:s3:::${TerraformStateS3Bucket}/*
+            Principal:
+              AWS:
+                - !Sub arn:aws:iam::${TerraformMasterAccountNumber}:root
+
+  TerraformStateLockDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TerraformStateLockTableName
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        # Add custom tags as CloudFormation is not able to add these unlike S3
+        - Key: aws-cloudformation-stack-id
+          Value: !Ref "AWS::StackId"
+        - Key: aws-cloudformation-stack-name
+          Value: !Ref "AWS::StackName"
+        - Key: aws-cloudformation-logical-id
+          Value: TerraformStateLockDynamoDBTable
